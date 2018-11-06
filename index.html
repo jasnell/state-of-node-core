@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset='utf-8'>
+  <meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0' />
+  <title>Big</title>
+  <link href='big.css' rel='stylesheet' type='text/css' />
+  <link href='highlight.css' rel='stylesheet' type='text/css' />
+  <style>
+    .new-shiny { background: #aaaaaa; }
+  </style>
+  <script src='big.js'></script>
+  <script src='highlight.js'></script>
+  <script>hljs.initHighlightingOnLoad();</script>
+</head>
+<body class='dark'>
+  <div class="title">
+    <div style="height: 30%">
+      The State of <span class="supersplit">Node.js</span> Core
+    </div>
+    <div style="font-size: 0.2em">
+      <span class="bubblegum">@</span>jasnell
+    </div>
+  </div>
+  <div class='logo'></div>
+  <div>
+    So far in <span class="supersplit">2018</span>...
+  </div>
+  <div>
+    <span class="bubblegum">3,986+</span> Pull Requests...
+  </div>
+  <div>
+    <span class="bubblegum">2,069+</span> Issues...<br />
+  </div>
+  <div>
+    ~<span class="bubblegum">200</span>+ New Contributors...<br />
+  </div>
+  <div>
+    Every change tested on ~<span class="bubblegum">55</span>
+    OS+Architecture combinations...
+  </div>
+  <div>
+    <span class="bubblegum">2,395</span>+ unit and integration tests...
+  </div>
+  <div>
+    <span class="bubblegum">95.69%</span> JavaScript coverage...
+  </div>
+  <div>
+    <span class="bubblegum">91.90%</span> C/C++ coverage...
+  </div>
+  <div>
+    The Security Working Group...
+    <ul>
+      <li><span class="supersplit">119</span> ecosystem advisories (https://github.com/nodejs/security-wg/tree/master/vuln/npm)</li><br />
+      <li><span class="supersplit">7</span> advisories for Node.js core</li>
+    </ul>
+  </div>
+  <div>
+    <span class="bubblegum">8</span> Node.js 6.x Releases...
+  </div>
+  <div>
+    <span class="bubblegum">8</span> Node.js 8.x Releases...
+  </div>
+  <div>
+    <span class="bubblegum">16</span> Node.js 10.x Releases...
+  </div>
+  <div>
+    Node.js <span class="bubblegum">11.0.0</span> <br />October 23rd
+  </div>
+  <div>
+    Node.js <span class="bubblegum">10.13.0</span>
+    <span class="supersplit">"Dubnium"</span> LTS <br /> October 30th
+  </div>
+  <div>
+      Mark your calendars: <br/>
+      Node.js <span class="bubblegum">12.0.0</span><br />
+      April 23rd 2019 
+    </div>
+  <div>
+    <img src="media/semver-major-by-version.png"
+         alt="Semver-Major Commits By Version"
+         width="100"/>
+  </div>
+  <div>
+    What have we been <span class="supersplit">working</span> on?
+  </div>
+  <div>
+    HTTP/<span class="supersplit">2</span>
+  </div>
+  <div>
+    <span class="supersplit">Fully Supported</span> in
+    Node.js 10/11.
+  </div>
+  <div>
+<pre><code>
+const http2 = require('http2')
+
+const server = http2.createSecureServer({ key, cert })
+
+server.on('stream', (stream) => {
+  stream.respond()
+  stream.end('Hello World!')
+})
+
+server.listen(443)
+</code></pre>
+  </div>
+  <div>
+    <span class="bubblegum">ALTSVC</span> and
+    <span class="supersplit">ORIGIN</span> frames.
+  </div>
+  <div>
+    <span class="bubblegum">CONNECT</span> Protocol extension
+    for <span class="supersplit">WebSockets</span> over HTTP/2
+  </div>
+  <div>
+<pre><code>
+const http2 = require('http2')
+const websocket = require('websocket-stream')
+const WebSocket = require('ws')
+const settings = { enableConnectProtocol: true }
+const server = http2.createSecureServer({ settings, cert, key })
+
+function createWebSocket(stream, headers) {
+  stream.setNoDelay = function() {}   // fake it for now...
+  const ws = new WebSocket(null)
+  ws.setSocket(stream, headers, 100 * 1024 * 1024)
+  return websocket(ws)
+}
+
+server.on('stream', (stream, headers) => {
+  if (headers[':method'] === 'CONNECT') {
+    stream.respond({ 'sec-websocket-protocol': headers['sec-websocket-protocol'] })
+    const ws = createWebSocket(stream, headers)
+    ws.pipe(ws)
+  } else {
+    stream.respond()
+    stream.end('ok\n')
+  }
+})
+
+server.listen(443)
+</code></pre>
+  </div>
+  <div>
+<pre><code>
+const origin = `http://localhost:${server.address().port}`
+const client = http2.connect(origin)
+
+client.on('remoteSettings', (settings) => {
+  if (!settings.enableConnectProtocol)
+    throw new Error('whoops! something went wrong!')
+  
+  const req = client.request({
+    ':method': 'CONNECT',
+    ':protocol': 'websocket',
+    ':path': '/chat',
+    'sec-websocket-protocol': 'chat',
+    'sec-websocket-version': 13,
+    origin
+  })
+
+  req.on('response', (headers) => {
+    const ws = createWebSocket(req, headers)
+    ws.setEncoding('utf8')
+    ws.on('data', console.log)
+    process.stdin.pipe(ws)
+  })
+
+  req.on('close', () => client.close())
+})
+</code></pre>
+  </div>
+  <div>
+    Current Focus:<br /> Make it <span class="supersplit">Faster</span>
+  </div>
+  <div>
+    <span class="supersplit">Worker</span> Threads<br/>
+    (<span class="bubblegum">Experimental</span>)
+  </div>
+  <div>
+<pre><code>
+const {
+  Worker, isMainThread, parentPort, workerData
+} = require('worker_threads');
+
+if (isMainThread) {
+  module.exports =
+    function somethingAsync(data) {
+      return new Promise((resolve, reject) => {
+        const worker = new Worker(__filename, {
+          workerData: data
+        });
+        worker.on('message', resolve);
+        worker.on('error', reject);
+        worker.on('exit', (code) => {
+          if (code !== 0)
+            reject(new Error(`Worker stopped with exit code ${code}`));
+        });
+      });
+    };
+} else {
+  // This runs in a different thread!
+  function doSomething(data) { /** Something time consuming **/
+    return 'done'
+  }
+  parentPort.postMessage(doSomething(workerData));
+  }
+}
+</code></pre>
+  </div>
+  <div>
+      <img src="media/workers.png" />
+    </div>
+  <div>
+    <span class="bubblegum">Shared</span> and
+    <span class="supersplit">Exclusive</span> Locks?
+  </div>
+  <div>
+<pre><code>
+worker_threads.locks.request('my_resource', async (lock) => {
+  // The lock was granted.
+}).then(() => {
+  // The lock is released here.
+});
+</code></pre>
+  </div>
+  <div>
+    <span class="bubblegum">Deadlock</span> Detection?
+  </div>
+  <div>
+    <span class="bubblegum">Inspector</span> and
+    <span class="supersplit">Diagnostics</span> Support?
+  </div>
+  <div>
+    <i>Should</i> graduate before Node.js
+    <span class="supersplit">12.0.0</span>
+  </div>
+  <div>
+    <span class="supersplit">N</span>-API
+  </div>
+  <div>
+      <span class="bubblegum">Fully Supported</span>
+    for <b>all</b> <span class="supersplit">Native Addons</span>
+  </div>
+  <div>
+<pre><code>
+napi_value Init(napi_env env, napi_value exports) {
+  napi_status status;
+  napi_property_descriptor desc =
+      {"hello", NULL, Method, NULL, NULL, NULL, napi_default, NULL};
+  status = napi_define_properties(env, exports, 1, &desc);
+  if (status != napi_ok) return NULL;
+  return exports;
+}
+</code></pre>
+  (There's a Workshop about this Tomorrow afternoon!)
+  </div>
+  <div>
+    Tracing <span class="supersplit">&</span> Diagnostics
+  </div>
+  <div>
+    Expanding support for <span class="supersplit">Trace Events</span>
+  </div>
+  <div>
+<pre><code>
+// Enable Tracing at Runtime
+
+const { createTracing } = require('trace_events');
+const tracing = createTracing({
+  categories: ['node.perf']
+});
+
+tracing.enable();
+
+perf_hooks.mark('A');
+doSomething(() => {
+  perf_hooks.mark('B');
+  perf_hooks.measure('A to B', 'A', 'B');
+});
+
+tracing.disable();
+</code></pre>
+  </div>
+  <div>
+<pre><code>
+// Access Tracing via the Inspector Protocol
+
+const CDP = require('chrome-remote-interface');
+
+(async function() {
+  const client = await CDP({port: 9229});
+
+  client.NodeTracing.tracingComplete(() => client.close());
+
+  client.on('event', (message) => console.log(message.data));
+
+  await client.NodeTracing.start({
+    traceConfig: {
+      recordMode: 'recordContinuously',
+      includedCategories: ['node'],
+    }
+  });
+
+  setTimeout(() => client.NodeTracing.stop(), 1000);
+})()
+</code></pre>
+  </div>
+  <div>
+      <span class="supersplit">Support tiers</span> for Diagnostic tools:
+      <ul>
+        <li><span class="bubblegum">Tier 1</span>: Must always work</li>
+        <li><span class="bubblegum">Tier 2</span>: Must always work for LTS</li>
+        <li><span class="bubblegum">Tier 3</span>: Will be tested in CI</li>
+        <li><span class="bubblegum">Tier 4</span>: Not Blocking</li>
+      </ul>
+  </div>
+  <div>
+    There are no Tier 1 and 2 tools <span class="supersplit">yet</span>.
+  </div>
+  <div>
+    <span class="supersplit">Tier 3</span> (tested in CI):
+    <ul>
+      <li>V8 CPU Profiler</li>
+      <li><code>--prof</code> and <code>--prof-process</code> flags</li>
+      <li>V8 CodeEventHandler API</li>
+      <li>V8 <code>--interpreted-frames-native-stack</code> flag</li>
+      <li>Linux perf</li>
+    </ul>
+  </div>
+  <div>
+    ES6 <span class="supersplit">Modules</span>
+  </div>
+  <div>
+    Modules really <span class="supersplit">are</span> coming.
+  </div>
+  <div>
+    https://github.com/nodejs/modules:
+    <ul>
+      <li>ESM Loader</li>
+      <li>Resolution Algorithms</li>
+      <li>Loader Hooks</li>
+      <li>ESM and CommonJS Interop</li>
+      <li>Node.js and Browser compatibility</li>
+    </ul>
+  </div>
+  <div>
+    What else have we been doing?
+  </div>
+  <div>
+    Making Node.js better for embedders (like
+    <span class="supersplit">Electron</span>)
+  </div>
+  <div>
+    Added <span class="bubblegum">BigInt</span> Support
+  </div>
+  <div>
+<pre><code>
+process.hrtime.bigint()
+
+fs.stat('myfile.txt', { bigint: true }, callback)
+</code></pre>
+  </div>
+  <div>
+    Expanded <span class="supersplit">Promises</span> Support
+  </div>
+  <div>
+<pre><code>
+const { Resolver } = require('dns').promises;
+const resolver = new Resolver();
+resolver.setServers(['4.4.4.4']);
+
+(async function() {
+  const addresses = await resolver.resolve4('example.org');
+})();
+</code></pre>
+  </div>
+  <div>
+    New Crypto <span class="bubblegum">Key Generation</span> API
+  </div>
+  <div>
+<pre><code>
+const { generateKeyPair } = require('crypto');
+generateKeyPair('rsa', {
+  modulusLength: 4096,
+  publicKeyEncoding: {
+    type: 'spki',
+    format: 'pem'
+  },
+  privateKeyEncoding: {
+    type: 'pkcs8',
+    format: 'pem',
+    cipher: 'aes-256-cbc',
+    passphrase: 'top secret'
+  }
+}, (err, publicKey, privateKey) => {
+  // Handle errors and use the generated key pair.
+});
+</code></pre>
+  </div>
+  <div>
+    Added <span class="supersplit">multipleResolves</span> Event.
+  </div>
+  <div>
+<pre><code>
+process.on('multipleResolves', (type, promise, reason) => {
+  console.error(type, promise, reason);
+  setImmediate(() => process.exit(1));
+});
+
+return await new Promise((resolve, reject) => {
+  resolve('First call');
+  resolve('Swallowed resolve');
+  reject(new Error('Swallowed reject'));
+});
+</code></pre>
+  </div>
+  <div>
+    Added <span class="bubblegum">recursive</span> mkdir
+  </div>
+  <div>
+<pre><code>
+fs.mkdir('/tmp/a/apple', { recursive: true }, (err) => {
+  if (err) throw err;
+});
+</code></pre>
+  </div>
+  </div>
+  <div>
+    What else might be coming?
+  </div>
+  <div>
+    A new REPL? <br /><br />https://github.com/nodejs/repl
+  </div>
+  <div>
+    New low-level streams? <br /><br /> https://github.com/fishrock123/bob
+  </div>
+  <div>
+    WHATWG Streams? <br /><br /> https://github.com/nodejs/admin/issues/262
+  </div>
+  <div>
+    QUIC support? <br /><br /> https://github.com/nodejs/node/issues/23064
+  </div>
+  <div>
+    A faster, maintainable http_parser? <br /><br /> https://github.com/nodejs/node/pull/24059
+  </div>
+  <div>
+    Module Loader Integrity Checks? <br /><br />
+    https://github.com/nodejs/node/pull/23834
+  </div>
+  <div>
+    Security Policies? <br /><br />
+    https://github.com/nodejs/node/pull/22112
+  </div>
+  <div>
+    Come Help Us <br />
+
+    <span class="supersplit">Code & Learn</span>,
+    2pm Today, McCurdy 3
+  </div>
+</body>
+</html>
